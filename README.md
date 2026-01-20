@@ -838,7 +838,6 @@ For issues, questions, or contributions:
 
 <div align="center">
 
-**Built with ❤️ using Azure, Terraform, and Python**
 
 [⬆ Back to top](#azure-api-management--document-intelligence)
 
