@@ -1,0 +1,251 @@
+<!-- Enhanced Analyze Results Operation Policy with Circuit Breaker -->
+<!-- Handles GET polling with automatic backend switching and error resilience -->
+<policies>
+    <inbound>
+        <base />
+        
+        <!-- Load configuration values -->
+        <set-variable name="subscription-id" value="{{azure-subscription-id}}" />
+        <set-variable name="resource-group" value="{{azure-resource-group}}" />
+        <set-variable name="apim-service-name" value="{{azure-apim-service-name}}" />
+        <set-variable name="latency-threshold" value="{{backend-switch-threshold}}" />
+        <set-variable name="circuit-breaker-threshold" value="{{circuit-breaker-threshold}}" />
+        <set-variable name="circuit-breaker-timeout" value="{{circuit-breaker-timeout}}" />
+        
+        <set-variable name="latency-threshold-seconds" value="@{
+            var thresholdStr = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;latency-threshold&quot;, &quot;5.0&quot;);
+            double parsedThreshold;
+            return double.TryParse(thresholdStr, out parsedThreshold) ? parsedThreshold : 5.0;
+        }" />
+        
+        <!-- Extract backend routing parameters -->
+        <set-variable name="requestTimeParam" value="@(context.Request.Url.Query.GetValueOrDefault(&quot;requestTime&quot;, string.Empty))" />
+        <set-variable name="requested-backend" value="@(context.Request.Url.Query.GetValueOrDefault(&quot;backendId&quot;, string.Empty))" />
+        
+        <!-- Validate and normalize backend ID -->
+        <set-variable name="normalized-backend" value="@{
+            var requested = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;requested-backend&quot;);
+            return string.IsNullOrEmpty(requested) ? string.Empty : requested.Trim().ToLowerInvariant();
+        }" />
+        
+        <set-variable name="backend-validation-error" value="@{
+            var backend = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;normalized-backend&quot;);
+            if (string.IsNullOrEmpty(backend)) { return &quot;backendId query parameter is required.&quot;; }
+            var allowed = new[] { &quot;doc-west-pool&quot;, &quot;doc-north-pool&quot;, &quot;doc-west&quot;, &quot;doc-north&quot; };
+            return Array.IndexOf(allowed, backend) &gt;= 0 ? string.Empty : $&quot;backendId '{backend}' is not allowed.&quot;;
+        }" />
+        
+        <!-- Return 400 if backend validation fails -->
+        <choose>
+            <when condition="@(!string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;backend-validation-error&quot;)))">
+                <return-response>
+                    <set-status code="400" reason="Bad Request" />
+                    <set-header name="Content-Type" exists-action="override">
+                        <value>application/json</value>
+                    </set-header>
+                    <set-body>@{
+                        var error = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;backend-validation-error&quot;, &quot;Invalid backendId&quot;);
+                        return "{\"error\":\"" + error + "\"}";
+                    }</set-body>
+                </return-response>
+            </when>
+        </choose>
+        
+        <!-- Set backend and alternate for failover -->
+        <set-variable name="selected-backend" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;normalized-backend&quot;, &quot;doc-west-pool&quot;))" />
+        <set-variable name="alternate-backend" value="@{
+            var selected = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;doc-west-pool&quot;);
+            // Handle both pool IDs and legacy backend IDs
+            if (selected.Contains(&quot;west&quot;)) { return selected.Contains(&quot;pool&quot;) ? &quot;doc-north-pool&quot; : &quot;doc-north&quot;; }
+            return selected.Contains(&quot;pool&quot;) ? &quot;doc-west-pool&quot; : &quot;doc-west&quot;;
+        }" />
+        
+        <set-backend-service backend-id="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;doc-west-pool&quot;))" />
+    </inbound>
+    
+    <backend>
+        <base />
+    </backend>
+    
+    <outbound>
+        <base />
+        
+        <set-variable name="switch-performed" value="@((bool)false)" />
+        
+        <!-- Calculate request duration -->
+        <set-variable name="request-duration-seconds" value="@{
+            var requestTimeRaw = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;requestTimeParam&quot;);
+            if (string.IsNullOrEmpty(requestTimeRaw)) { return 0.0; }
+            try {
+                var decoded = System.Uri.UnescapeDataString(requestTimeRaw);
+                var requestTime = DateTime.Parse(decoded);
+                return (DateTime.UtcNow - requestTime).TotalSeconds;
+            } catch { return 0.0; }
+        }" />
+        
+        <set-variable name="duration-exceeds-threshold" value="@{
+            var duration = context.Variables.GetValueOrDefault&lt;double&gt;(&quot;request-duration-seconds&quot;);
+            var threshold = context.Variables.GetValueOrDefault&lt;double&gt;(&quot;latency-threshold-seconds&quot;);
+            return duration &gt; threshold;
+        }" />
+        
+        <set-variable name="response-has-retry-after" value="@{
+            return context.Response.Headers.ContainsKey(&quot;Retry-After&quot;) &amp;&amp;
+                context.Response.Headers[&quot;Retry-After&quot;] != null &amp;&amp;
+                context.Response.Headers[&quot;Retry-After&quot;].Length &gt; 0;
+        }" />
+        
+        <!-- Inject Retry-After if threshold exceeded but not present -->
+        <choose>
+            <when condition="@(!context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;response-has-retry-after&quot;) &amp;&amp; context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;duration-exceeds-threshold&quot;))">
+                <set-header name="Retry-After" exists-action="override">
+                    <value>1</value>
+                </set-header>
+                <set-variable name="response-has-retry-after" value="@((bool)true)" />
+            </when>
+        </choose>
+        
+        <!-- Determine if backend switch is needed -->
+        <set-variable name="should-switch" value="@{
+            var hasRetry = context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;response-has-retry-after&quot;);
+            var durationExceeded = context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;duration-exceeds-threshold&quot;);
+            var statusCode = context.Response.StatusCode;
+            
+            // Don't switch on successful completion (200) without retry header
+            if (statusCode == 200 &amp;&amp; !hasRetry) { return false; }
+            
+            // Switch if duration exceeded and operation still pending
+            return hasRetry &amp;&amp; durationExceeded;
+        }" />
+
+        <!-- Execute backend switch if conditions met -->
+        <choose>
+            <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;should-switch&quot;))">
+                <set-variable name="original-backend" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;doc-west-pool&quot;))" />
+                <set-variable name="new-active-backend" value="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;alternate-backend&quot;, &quot;doc-north-pool&quot;))" />
+
+                <!-- Get Management API token -->
+                <authentication-managed-identity 
+                    resource="https://management.azure.com/" 
+                    output-token-variable-name="mgmt-token" 
+                    ignore-error="true" />
+                
+                <set-variable name="mgmt-token-value" value="@{
+                    return context.Variables.ContainsKey(&quot;mgmt-token&quot;)
+                        ? context.Variables[&quot;mgmt-token&quot;] as string ?? string.Empty
+                        : string.Empty;
+                }" />
+                
+                <!-- Update named value to switch active backend -->
+                <choose>
+                    <when condition="@(!string.IsNullOrEmpty(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;mgmt-token-value&quot;, string.Empty)))">
+                        <send-request mode="new" response-variable-name="switch-response" timeout="10" ignore-error="true">
+                            <set-url>@($"https://management.azure.com/subscriptions/{context.Variables[&quot;subscription-id&quot;]}/resourceGroups/{context.Variables[&quot;resource-group&quot;]}/providers/Microsoft.ApiManagement/service/{context.Variables[&quot;apim-service-name&quot;]}/namedValues/doc-active-backend?api-version=2021-08-01")</set-url>
+                            <set-method>PATCH</set-method>
+                            <set-header name="Authorization" exists-action="override">
+                                <value>@("Bearer " + context.Variables.GetValueOrDefault&lt;string&gt;(&quot;mgmt-token-value&quot;, string.Empty))</value>
+                            </set-header>
+                            <set-header name="Content-Type" exists-action="override">
+                                <value>application/json</value>
+                            </set-header>
+                            <set-body>@{
+                                var newBackend = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;new-active-backend&quot;, "doc-west-pool");
+                                return "{\"properties\":{\"displayName\":\"doc-active-backend\",\"value\":\"" + newBackend + "\",\"secret\":false}}";
+                            }</set-body>
+                        </send-request>
+                        
+                        <set-variable name="switch-api-result" value="@{
+                            var response = context.Variables.GetValueOrDefault&lt;IResponse&gt;(&quot;switch-response&quot;);
+                            return response != null ? response.StatusCode.ToString() : &quot;NoResponse&quot;;
+                        }" />
+                        
+                        <trace source="AutoBackendSwitch">
+@{
+    var duration = context.Variables.GetValueOrDefault&lt;double&gt;(&quot;request-duration-seconds&quot;);
+    var threshold = context.Variables.GetValueOrDefault&lt;double&gt;(&quot;latency-threshold-seconds&quot;);
+    var original = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;original-backend&quot;);
+    var updated = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;new-active-backend&quot;);
+    var result = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;switch-api-result&quot;, "No result");
+    return $"Backend switch triggered: {duration:F2}s &gt; {threshold:F2}s ({original} -&gt; {updated}) [{result}]";
+}
+                        </trace>
+                        <set-variable name="switch-performed" value="@((bool)true)" />
+                    </when>
+                    <otherwise>
+                        <set-variable name="switch-api-result" value="ManagedIdentityUnavailable" />
+                        <trace source="AutoBackendSwitch">Managed Identity token unavailable; skipping backend switch.</trace>
+                    </otherwise>
+                </choose>
+            </when>
+        </choose>
+
+        <!-- Add diagnostic headers -->
+        <set-header name="X-Request-Duration" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;double&gt;(&quot;request-duration-seconds&quot;).ToString(&quot;F2&quot;))</value>
+        </set-header>
+        <set-header name="X-Duration-Threshold" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;latency-threshold&quot;, &quot;0&quot;))</value>
+        </set-header>
+        <set-header name="X-Duration-Threshold-Exceeded" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;duration-exceeds-threshold&quot;) ? &quot;true&quot; : &quot;false&quot;)</value>
+        </set-header>
+        <set-header name="X-Backend-Switched" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;switch-performed&quot;) ? &quot;true&quot; : &quot;false&quot;)</value>
+        </set-header>
+        <set-header name="X-Switch-Reason" exists-action="override">
+            <value>@{
+                var duration = context.Variables.GetValueOrDefault&lt;double&gt;(&quot;request-duration-seconds&quot;);
+                var threshold = context.Variables.GetValueOrDefault&lt;double&gt;(&quot;latency-threshold-seconds&quot;);
+                var switched = context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;switch-performed&quot;);
+                if (switched)
+                {
+                    return $&quot;Duration {duration:F2}s exceeded {threshold:F2}s threshold&quot;;
+                }
+                return duration &gt; threshold ? $&quot;Duration {duration:F2}s exceeded but no switch triggered&quot; : $&quot;Duration {duration:F2}s within threshold {threshold:F2}s&quot;;
+            }</value>
+        </set-header>
+        
+        <!-- Add switch details if performed -->
+        <choose>
+            <when condition="@(context.Variables.GetValueOrDefault&lt;bool&gt;(&quot;switch-performed&quot;))">
+                <set-header name="X-Old-Backend" exists-action="override">
+                    <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;original-backend&quot;, &quot;unknown&quot;))</value>
+                </set-header>
+                <set-header name="X-New-Backend" exists-action="override">
+                    <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;new-active-backend&quot;, &quot;unknown&quot;))</value>
+                </set-header>
+                <set-header name="X-Named-Value-Update-Status" exists-action="override">
+                    <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;switch-api-result&quot;, &quot;No update attempted&quot;))</value>
+                </set-header>
+            </when>
+        </choose>
+    </outbound>
+    
+    <on-error>
+        <base />
+        
+        <!-- Enhanced error handling with circuit breaker awareness -->
+        <set-header name="X-Error-Operation" exists-action="override">
+            <value>AnalyzeResults</value>
+        </set-header>
+        <set-header name="X-Error-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend", "unknown"))</value>
+        </set-header>
+        
+        <!-- Circuit breaker error classification -->
+        <choose>
+            <when condition="@(context.Response.StatusCode == 429)">
+                <set-header name="X-Circuit-Breaker-Error" exists-action="override">
+                    <value>RateLimitExceeded</value>
+                </set-header>
+                <trace source="CircuitBreaker">Rate limit error on GET operation backend: @(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend"))</trace>
+            </when>
+            <when condition="@(context.Response.StatusCode >= 500 &amp;&amp; context.Response.StatusCode &lt; 600)">
+                <set-header name="X-Circuit-Breaker-Error" exists-action="override">
+                    <value>ServerError-@(context.Response.StatusCode)</value>
+                </set-header>
+                <trace source="CircuitBreaker">Server error (@(context.Response.StatusCode)) on GET operation backend: @(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend"))</trace>
+            </when>
+        </choose>
+    </on-error>
+</policies>

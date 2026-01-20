@@ -1,0 +1,161 @@
+{
+    "openapi": "3.0.1",
+    "info": {
+        "title": "Azure AI Document Intelligence (proxy)",
+        "version": "1.0"
+    },
+    "servers": [{
+        "url": "https://YOUR-SERVICE-NAME.azure-api.net/doc"
+    }],
+    "paths": {
+        "/documentintelligence/documentModels/{modelId}:analyze": {
+            "post": {
+                "summary": "Analyze Document",
+                "description": "Analyze Document",
+                "operationId": "post-documentintelligence-documentmodels-modelid-analyze-api-version-api-ver",
+                "parameters": [{
+                    "name": "modelId",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "enum": ["prebuilt-invoice"],
+                        "type": "string",
+                        "default": "prebuilt-invoice"
+                    }
+                }, {
+                    "name": "api-version",
+                    "in": "query",
+                    "required": true,
+                    "schema": {
+                        "enum": ["2024-11-30"],
+                        "type": "string",
+                        "default": "2024-11-30",
+                        "example": "2024-11-30"
+                    }
+                }, {
+                    "name": "_overload",
+                    "in": "query",
+                    "schema": {
+                        "enum": ["analyzeDocument"],
+                        "type": "string"
+                    }
+                }, {
+                    "name": "pages",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    }
+                }, {
+                    "name": "locale",
+                    "in": "query",
+                    "schema": {
+                        "type": "string"
+                    }
+                }],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "oneOf": [{
+                                    "required": ["urlSource"],
+                                    "type": "object",
+                                    "properties": {
+                                        "urlSource": {
+                                            "type": "string",
+                                            "format": "uri"
+                                        }
+                                    }
+                                }, {
+                                    "required": ["base64Source"],
+                                    "type": "object",
+                                    "properties": {
+                                        "base64Source": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }]
+                            },
+                            "example": {
+                                "urlSource": "string"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "headers": {
+                            "Operation-Location": {
+                                "description": "Polling URL for the analysis operation",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request"
+                    },
+                    "401": {
+                        "description": "Unauthorized"
+                    },
+                    "429": {
+                        "description": "Too Many Requests"
+                    }
+                }
+            }
+        },
+        "/documentintelligence/documentModels/{modelId}/analyzeResults/{resultId}": {
+            "get": {
+                "summary": "analyzeResults",
+                "operationId": "analyzeResults",
+                "parameters": [{
+                    "name": "modelId",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": ""
+                    }
+                }, {
+                    "name": "resultId",
+                    "in": "path",
+                    "required": true,
+                    "schema": {
+                        "type": ""
+                    }
+                }, {
+                    "name": "api-version",
+                    "in": "query",
+                    "schema": {
+                        "enum": ["2024-11-30"],
+                        "type": "string"
+                    }
+                }],
+                "responses": {
+                    "200": {
+                        "description": ""
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "securitySchemes": {
+            "apiKeyHeader": {
+                "type": "apiKey",
+                "name": "Ocp-Apim-Subscription-Key",
+                "in": "header"
+            },
+            "apiKeyQuery": {
+                "type": "apiKey",
+                "name": "subscription-key",
+                "in": "query"
+            }
+        }
+    },
+    "security": [{
+        "apiKeyHeader": []
+    }, {
+        "apiKeyQuery": []
+    }]
+}

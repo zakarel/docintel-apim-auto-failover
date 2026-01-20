@@ -1,0 +1,30 @@
+2025-12-18 17:50:18,211 - INFO - Automatic Backend Tester initialized
+2025-12-18 17:50:18,212 - INFO - Sample document: /mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/tests/test-data/small.pdf
+2025-12-18 17:50:18,213 - INFO - Log file: /mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/logs/backend_switching_test_20251218_175017.log
+2025-12-18 17:50:18,214 - INFO - === STARTING AUTOMATIC BACKEND SWITCHING TEST ===
+2025-12-18 17:50:18,214 - INFO - Goal: Verify automatic backend switching at configured threshold
+2025-12-18 17:50:18,215 - INFO - === Testing Automatic Switching: Auto-Switch-1 ===
+2025-12-18 17:50:19,314 - DEBUG - Captured POST https://api-genpact-test.azure-api.net/documentintelligence/documentModels/prebuilt-read:analyze?api-version=2024-11-30 -> 401
+2025-12-18 17:50:19,317 - ERROR - Test execution failed when calling https://api-genpact-test.azure-api.net/documentintelligence/documentModels/prebuilt-read:analyze?api-version=2024-11-30
+Traceback (most recent call last):
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/tests/integration/test_automatic_backend_switching.py", line 600, in main
+    results = tester.run_test()
+              ^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/tests/integration/test_automatic_backend_switching.py", line 549, in run_test
+    self.test_automatic_switching(run_id, f"Auto-Switch-{run_id}")
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/tests/integration/test_automatic_backend_switching.py", line 408, in test_automatic_switching
+    poller = self.client.begin_analyze_document(
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/.venv/lib/python3.12/site-packages/azure/core/tracing/decorator.py", line 119, in wrapper_use_tracer
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/.venv/lib/python3.12/site-packages/azure/ai/documentintelligence/_operations/_patch.py", line 603, in begin_analyze_document
+    raw_result = self._analyze_document_initial(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/.venv/lib/python3.12/site-packages/azure/ai/documentintelligence/_operations/_operations.py", line 817, in _analyze_document_initial
+    map_error(status_code=response.status_code, response=response, error_map=error_map)
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/.venv/lib/python3.12/site-packages/azure/core/exceptions.py", line 163, in map_error
+    raise error
+azure.core.exceptions.ClientAuthenticationError: (PermissionDenied) The principal `61a64558-b1f9-4acd-9238-6311c68b26bc` lacks the required data action `Microsoft.CognitiveServices/accounts/FormRecognizer/documentmodels:analyze/action` to perform `POST /documentintelligence/documentModels/{modelId}:analyze` operation.
+Code: PermissionDenied
+Message: The principal `61a64558-b1f9-4acd-9238-6311c68b26bc` lacks the required data action `Microsoft.CognitiveServices/accounts/FormRecognizer/documentmodels:analyze/action` to perform `POST /documentintelligence/documentModels/{modelId}:analyze` operation.

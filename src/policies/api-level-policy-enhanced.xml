@@ -1,0 +1,126 @@
+<!-- Enhanced API-Level Policy with Circuit Breaker Protection -->
+<!-- Implements resilient backend routing with error handling for common DI errors -->
+<policies>
+    <inbound>
+        <base />
+        
+        <!-- Load backend configuration -->
+        <set-variable name="configured-backend" value="{{doc-active-backend}}" />
+        <set-variable name="requested-backend" value="@(context.Request.Url.Query.GetValueOrDefault(&quot;backendId&quot;, string.Empty))" />
+        
+        <!-- Select backend (prefer query parameter override for in-flight ops) -->
+        <set-variable name="selected-backend" value="@{
+            var requested = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;requested-backend&quot;);
+            if (!string.IsNullOrEmpty(requested)) { return requested; }
+            var configured = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;configured-backend&quot;);
+            return string.IsNullOrEmpty(configured) ? &quot;doc-west-pool&quot; : configured;
+        }" />
+
+        <!-- Route to selected backend pool -->
+        <set-backend-service backend-id="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;doc-west-pool&quot;))" />
+        
+        <!-- Authenticate with Managed Identity -->
+        <authentication-managed-identity 
+            resource="https://cognitiveservices.azure.com" 
+            output-token-variable-name="managed-id-access-token" 
+            ignore-error="false" />
+        
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + context.Variables.GetValueOrDefault&lt;string&gt;(&quot;managed-id-access-token&quot;, string.Empty))</value>
+        </set-header>
+        
+        <!-- Rate limiting to prevent overwhelming backends -->
+        <rate-limit-by-key calls="100" renewal-period="60" counter-key="@(context.Request.IpAddress)" 
+                          increment-condition="@(context.Response.StatusCode >= 200 &amp;&amp; context.Response.StatusCode &lt; 300)" />
+    </inbound>
+    
+    <backend>
+        <base />
+    </backend>
+    
+    <outbound>
+        <base />
+        
+        <!-- Add diagnostic headers -->
+        <set-header name="X-Backend-Used" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;unknown&quot;))</value>
+        </set-header>
+        <set-header name="X-Processing-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;unknown&quot;))</value>
+        </set-header>
+        <set-header name="X-Configured-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;configured-backend&quot;, &quot;unset&quot;))</value>
+        </set-header>
+        <set-header name="X-Requested-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;requested-backend&quot;, string.Empty))</value>
+        </set-header>
+    </outbound>
+    
+    <on-error>
+        <base />
+        
+        <!-- Circuit Breaker: Handle common Document Intelligence errors -->
+        <choose>
+            <!-- 429 Too Many Requests - Rate limiting -->
+            <when condition="@(context.Response.StatusCode == 429)">
+                <set-header name="X-Error-Type" exists-action="override">
+                    <value>RateLimitExceeded</value>
+                </set-header>
+                <set-header name="X-Circuit-Breaker-Status" exists-action="override">
+                    <value>RateLimitDetected</value>
+                </set-header>
+                <trace source="CircuitBreaker">Rate limit (429) detected on backend: @(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend"))</trace>
+                
+                <!-- Add Retry-After header if not present -->
+                <choose>
+                    <when condition="@(!context.Response.Headers.ContainsKey(&quot;Retry-After&quot;))">
+                        <set-header name="Retry-After" exists-action="override">
+                            <value>60</value>
+                        </set-header>
+                    </when>
+                </choose>
+            </when>
+            
+            <!-- 500-599 Server Errors -->
+            <when condition="@(context.Response.StatusCode >= 500 &amp;&amp; context.Response.StatusCode &lt; 600)">
+                <set-header name="X-Error-Type" exists-action="override">
+                    <value>ServerError</value>
+                </set-header>
+                <set-header name="X-Circuit-Breaker-Status" exists-action="override">
+                    <value>ServerErrorDetected</value>
+                </set-header>
+                <trace source="CircuitBreaker">Server error (@(context.Response.StatusCode)) detected on backend: @(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend"))</trace>
+            </when>
+            
+            <!-- 503 Service Unavailable -->
+            <when condition="@(context.Response.StatusCode == 503)">
+                <set-header name="X-Error-Type" exists-action="override">
+                    <value>ServiceUnavailable</value>
+                </set-header>
+                <set-header name="X-Circuit-Breaker-Status" exists-action="override">
+                    <value>ServiceUnavailable</value>
+                </set-header>
+                <trace source="CircuitBreaker">Service unavailable (503) detected on backend: @(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend"))</trace>
+            </when>
+            
+            <!-- 504 Gateway Timeout -->
+            <when condition="@(context.Response.StatusCode == 504)">
+                <set-header name="X-Error-Type" exists-action="override">
+                    <value>GatewayTimeout</value>
+                </set-header>
+                <set-header name="X-Circuit-Breaker-Status" exists-action="override">
+                    <value>TimeoutDetected</value>
+                </set-header>
+                <trace source="CircuitBreaker">Gateway timeout (504) detected on backend: @(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend"))</trace>
+            </when>
+        </choose>
+        
+        <!-- Add error context headers -->
+        <set-header name="X-Error-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend", "unknown"))</value>
+        </set-header>
+        <set-header name="X-Error-Timestamp" exists-action="override">
+            <value>@(DateTime.UtcNow.ToString("o"))</value>
+        </set-header>
+    </on-error>
+</policies>

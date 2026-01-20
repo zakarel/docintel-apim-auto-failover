@@ -1,0 +1,8 @@
+{
+    "properties": {
+        "displayName": "Backend Switch Latency Threshold",
+        "value": "5.0",
+        "secret": false,
+        "tags": []
+    }
+}

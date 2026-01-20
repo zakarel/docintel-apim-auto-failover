@@ -1,0 +1,180 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0" version="29.2.3">
+  <diagram name="APIM-DocIntel-Architecture" id="apim-architecture">
+    <mxGraphModel dx="1683" dy="681" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1" value="Azure API Management + Document Intelligence&#xa;Auto-Failover Architecture" vertex="1">
+          <mxGeometry height="60" width="700" x="500" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="client" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="80" width="200" x="40" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="client-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11" value="&lt;div&gt;&lt;span style=&quot;font-size: 14px; font-weight: 700; text-align: center;&quot;&gt;Client Application&lt;/span&gt;&lt;/div&gt;• Azure SDK&lt;br&gt;• APIM Subscription Key" vertex="1">
+          <mxGeometry height="40" width="180" x="50" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="apim-container" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=16;fontStyle=1;verticalAlign=top;align=center" value="Azure API Management" vertex="1">
+          <mxGeometry height="600" width="700" x="320" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="api-policy" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="100" width="620" x="360" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="api-policy-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=10" value="&lt;div&gt;&lt;span style=&quot;font-size: 13px; font-weight: 700; text-align: center;&quot;&gt;API-Level Policy&lt;/span&gt;&lt;/div&gt;1. Load configured-backend from {{doc-active-backend}}&lt;br&gt;2. Check backendId query parameter&lt;br&gt;3. Select backend = backendId OR configured-backend&lt;br&gt;4. Get Managed Identity token (cognitiveservices.azure.com)&lt;br&gt;5. Set Authorization: Bearer " vertex="1">
+          <mxGeometry height="70" width="600" x="370" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="post-op" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="120" width="280" x="360" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="post-op-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=9" value="&lt;div&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700; text-align: center;&quot;&gt;POST /analyze Operation&lt;/span&gt;&lt;/div&gt;INBOUND:&lt;br&gt;• Capture requestStartTime&lt;br&gt;&lt;br&gt;OUTBOUND:&lt;br&gt;• Rewrite Operation-Location header&lt;br&gt;• Replace DI URL with APIM URL&lt;br&gt;• Inject ?backendId=&lt;br&gt;• Inject &amp;amp;requestTime=" vertex="1">
+          <mxGeometry height="95" width="260" x="370" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="get-op" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="210" width="280" x="700" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="get-op-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=9" value="&lt;div&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700; text-align: center;&quot;&gt;GET /analyzeResults Operation&lt;/span&gt;&lt;/div&gt;INBOUND:&lt;br&gt;• Extract &amp;amp; validate backendId (required)&lt;br&gt;• Extract requestTime parameter&lt;br&gt;• Calculate alternate-backend&lt;br&gt;• Route to selected backend&lt;br&gt;&lt;br&gt;OUTBOUND:&lt;br&gt;• Calculate duration = UtcNow - requestTime&lt;br&gt;• Check duration &amp;gt; threshold?&lt;br&gt;• Check has Retry-After header?&lt;br&gt;&lt;br&gt;IF (duration &amp;gt; threshold &amp;amp;&amp;amp; Retry-After):&lt;br&gt;  • Get MI token (management.azure.com)&lt;br&gt;  • PATCH /namedValues/doc-active-backend&lt;br&gt;  • Switch to alternate-backend&lt;br&gt;  • Add diagnostic headers" vertex="1">
+          <mxGeometry height="175" width="260" x="710" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="backend-pool" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1" value="Backend Pool" vertex="1">
+          <mxGeometry height="40" width="280" x="360" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="named-values" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="80" width="280" x="700" y="520" as="geometry" />
+        </mxCell>
+        <mxCell id="named-values-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=9" value="&lt;div&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700; text-align: center;&quot;&gt;Named Values&lt;/span&gt;&lt;/div&gt;• doc-active-backend = &quot;doc-west&quot; | &quot;doc-north&quot;&lt;br&gt;• backend-switch-threshold = 20&lt;br&gt;• azure-subscription-id, resource-group, etc." vertex="1">
+          <mxGeometry height="55" width="260" x="710" y="532.5" as="geometry" />
+        </mxCell>
+        <mxCell id="mi" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d4edda;strokeColor=#82b366;fontSize=11;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="60" width="280" x="360" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="mi-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=9" value="&lt;div&gt;&lt;span style=&quot;font-size: 11px; font-weight: 700; text-align: center;&quot;&gt;Managed Identity&lt;/span&gt;&lt;/div&gt;• Token for cognitiveservices.azure.com&lt;br&gt;• Token for management.azure.com" vertex="1">
+          <mxGeometry height="40" width="260" x="370" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="di-backends" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1;verticalAlign=top" value="Document Intelligence Backends" vertex="1">
+          <mxGeometry height="300" width="560" x="1100" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="di-west" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;fontSize=12;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="80" width="220" x="1140" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="di-west-url" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9" value="&lt;div&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700;&quot;&gt;doc-west&lt;/span&gt;&lt;br style=&quot;font-size: 12px; font-weight: 700;&quot;&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700;&quot;&gt;(West Europe)&lt;/span&gt;&lt;/div&gt;https://xxx-di-weu.&lt;br&gt;cognitiveservices.azure.com" vertex="1">
+          <mxGeometry height="30" width="220" x="1140" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="di-north" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b1ddf0;strokeColor=#10739e;fontSize=12;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="80" width="220" x="1400" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="di-north-url" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9" value="&lt;div&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700;&quot;&gt;doc-north&lt;/span&gt;&lt;br style=&quot;font-size: 12px; font-weight: 700;&quot;&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700;&quot;&gt;(North Europe)&lt;/span&gt;&lt;/div&gt;https://xxx-di-neu.&lt;br&gt;cognitiveservices.azure.com" vertex="1">
+          <mxGeometry height="30" width="220" x="1400" y="175" as="geometry" />
+        </mxCell>
+        <mxCell id="active-backend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4cc;strokeColor=#d6b656;fontSize=11;fontStyle=1" value="Active Backend: doc-west" vertex="1">
+          <mxGeometry height="40" width="480" x="1140" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="failover-note" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontStyle=2" value="On failover: Switches to alternate backend for NEW requests&#xa;In-flight operations continue on original backend via backendId param" vertex="1">
+          <mxGeometry height="30" width="480" x="1140" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="mgmt-api" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;fontStyle=1" value="" vertex="1">
+          <mxGeometry height="80" width="280" x="1330" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="mgmt-api-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" value="&lt;div&gt;&lt;span style=&quot;font-size: 12px; font-weight: 700;&quot;&gt;Azure Management API&lt;/span&gt;&lt;/div&gt;PATCH /namedValues/doc-active-backend&lt;br&gt;Updates active backend on failover" vertex="1">
+          <mxGeometry height="40" width="280" x="1320" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow1" edge="1" parent="1" source="client" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#0066CC;fontSize=11;fontStyle=1" target="api-policy" value="1. POST /analyze">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow2" edge="1" parent="1" source="api-policy" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#666666;dashed=1" target="post-op" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow3" edge="1" parent="1" source="client" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#CC6600;fontSize=11;fontStyle=1" target="get-op" value="7. GET polling&#xa;?backendId=...">
+          <mxGeometry relative="1" x="-0.2" as="geometry">
+            <Array as="points">
+              <mxPoint x="140" y="420" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow4" edge="1" parent="1" source="post-op" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;fontSize=10" target="di-west" value="2. Forward to&#xa;selected backend">
+          <mxGeometry relative="1" x="-0.0001" y="-10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="500" y="490" />
+              <mxPoint x="1250" y="490" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow5" edge="1" parent="1" source="get-op" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366;fontSize=10" target="di-west" value="&lt;b&gt;8. Route via&lt;br&gt;backendID&lt;/b&gt;">
+          <mxGeometry relative="1" x="-0.7084" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="840" y="440" />
+              <mxPoint x="1250" y="440" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow6" edge="1" parent="1" source="get-op" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=3;strokeColor=#CC0000;fontSize=10;fontStyle=1;dashed=1" target="mgmt-api" value="9. On slow response:&#xa;Switch backend">
+          <mxGeometry relative="1" x="0.2857" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow7" edge="1" parent="1" source="mgmt-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#CC0000;fontSize=10;dashed=1" target="named-values" value="&lt;b&gt;Update&lt;/b&gt;">
+          <mxGeometry relative="1" x="0.4857" y="-10" as="geometry">
+            <mxPoint as="offset" />
+            <Array as="points">
+              <mxPoint x="1240" y="560" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="concepts-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff4e6;strokeColor=#d6b656;fontSize=14;fontStyle=1;verticalAlign=top;align=left" value="" vertex="1">
+          <mxGeometry height="470" width="260" x="40" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="concepts-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=10" value="&lt;span style=&quot;font-size: 14px; font-weight: 700;&quot;&gt;Key Concepts&lt;/span&gt;&lt;div&gt;&lt;span style=&quot;font-size: 14px;&quot;&gt;&lt;b&gt;&lt;br&gt;&lt;/b&gt;&lt;/span&gt;1. Backend Stickiness&lt;br&gt;   • backendId param ensures polling&lt;br&gt;     stays on same DI backend&lt;br&gt;   • Can&#39;t switch mid-operation (sync API)&lt;br&gt;&lt;br&gt;2. Operation-Location Rewrite&lt;br&gt;   • DI returns its own URL&lt;br&gt;   • APIM rewrites to APIM URL&lt;br&gt;   • Injects backendId + requestTime&lt;br&gt;&lt;br&gt;3. Auto-Failover (NOT Load Balancing)&lt;br&gt;   • One active backend at a time&lt;br&gt;   • Switches on duration threshold&lt;br&gt;   • In-flight ops stay on original&lt;br&gt;&lt;br&gt;4. Authentication Chain&lt;br&gt;   • Client → APIM: Subscription key&lt;br&gt;   • APIM → DI: Managed Identity&lt;br&gt;   • APIM → Mgmt API: Managed Identity&lt;br&gt;&lt;br&gt;5. Error Handling&lt;br&gt;   • Semi-automatic approach&lt;br&gt;   • Some errors handled, some not&lt;br&gt;   • Customer decides policy&lt;br&gt;&lt;br&gt;6. Scaling Considerations&lt;br&gt;   • Connected/disconnected containers&lt;br&gt;   • Reliability vs. cost tradeoff&lt;br&gt;&lt;br&gt;7. Threshold-Based Switching&lt;br&gt;   • Default: 20 seconds&lt;br&gt;   • Only triggers with Retry-After header&lt;br&gt;   • Updates named value for future reqs&lt;/div&gt;" vertex="1">
+          <mxGeometry height="410" width="240" x="50" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="sequence-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f3ff;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;verticalAlign=top;align=left" value="Request Flow Sequence" vertex="1">
+          <mxGeometry height="120" width="480" x="1090" y="605" as="geometry" />
+        </mxCell>
+        <mxCell id="sequence-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=10" value="&#xa;1️⃣ Client POST /analyze → APIM selects backend → Captures timestamp → Forwards to DI&#xa;2️⃣ DI returns 202 + Operation-Location → APIM rewrites URL + injects backendId &amp; requestTime&#xa;3️⃣ Client polls GET /analyzeResults?backendId=... → Routes to same backend via param&#xa;4️⃣ If duration &gt; threshold + Retry-After: Trigger failover → Update named value to alternate&#xa;5️⃣ In-flight polling continues on original backend; NEW requests use new backend&#xa;6️⃣ Diagnostic headers show: backend used, duration, if switched, old/new backends" vertex="1">
+          <mxGeometry height="90" width="540" x="1110" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;fontStyle=1;verticalAlign=top" value="Legend" vertex="1">
+          <mxGeometry height="120" width="260" x="40" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-solid" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#0066CC" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="60" y="800" as="sourcePoint" />
+            <mxPoint x="120" y="800" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-solid-text" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" value="Normal request flow" vertex="1">
+          <mxGeometry height="20" width="150" x="130" y="790" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-dashed" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#CC0000;dashed=1" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="60" y="830" as="sourcePoint" />
+            <mxPoint x="120" y="830" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-dashed-text" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" value="Failover / Switch flow" vertex="1">
+          <mxGeometry height="20" width="150" x="130" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-backend" edge="1" parent="1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#82b366" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="60" y="860" as="sourcePoint" />
+            <mxPoint x="120" y="860" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="legend-backend-text" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=10" value="Backend routing" vertex="1">
+          <mxGeometry height="20" width="150" x="130" y="850" as="geometry" />
+        </mxCell>
+        <mxCell id="footer" parent="1" style="text;html=1;strokeColor=#d6b656;fillColor=#fff4cc;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=1;fontSize=11;fontStyle=2" value="⚠️ This is an AUTO-FAILOVER solution (not load balancing) • One active backend at a time • Maintains backend stickiness for in-flight operations" vertex="1">
+          <mxGeometry height="40" width="1340" x="320" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="headers-box" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f0f0f0;strokeColor=#666666;fontSize=12;fontStyle=1;verticalAlign=top" value="Diagnostic Headers" vertex="1">
+          <mxGeometry height="60" width="700" x="320" y="820" as="geometry" />
+        </mxCell>
+        <mxCell id="headers-detail" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=9" value="X-Backend-Used • X-Request-Duration • X-Duration-Threshold • X-Backend-Switched&#xa;X-Old-Backend • X-New-Backend • X-Switch-Reason • X-Named-Value-Update-Status" vertex="1">
+          <mxGeometry height="30" width="680" x="330" y="845" as="geometry" />
+        </mxCell>
+        <mxCell id="version" parent="1" style="text;html=1;strokeColor=none;fillColor=none;align=right;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=9;fontStyle=2" value="Version 1.0 | Created: December 2024" vertex="1">
+          <mxGeometry height="20" width="210" x="1450" y="1060" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

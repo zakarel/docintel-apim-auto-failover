@@ -1,0 +1,10 @@
+2025-12-16 13:01:46,543 - ERROR - Test execution failed when calling https://di-westeurope.cognitiveservices.azure.com
+Traceback (most recent call last):
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/tests/integration/test_automatic_backend_switching.py", line 599, in main
+    tester = AutomaticBackendTester(sample_override=args.sample)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/c/Users/tzahiariel/Downloads/apim-doc-intel-sample/ApimDocIntelSample/tests/integration/test_automatic_backend_switching.py", line 74, in __init__
+    self.endpoint = os.environ["AZURE_APIM_ENDPOINT"].rstrip('/')
+                    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^
+  File "<frozen os>", line 685, in __getitem__
+KeyError: 'AZURE_APIM_ENDPOINT'

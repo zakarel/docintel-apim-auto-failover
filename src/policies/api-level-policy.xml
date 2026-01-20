@@ -1,0 +1,43 @@
+<!-- Refactored API-level policy focusing on backend selection logic -->
+<policies>
+    <inbound>
+        <base />
+
+        <set-variable name="configured-backend" value="{{doc-active-backend}}" />
+        <set-variable name="requested-backend" value="@(context.Request.Url.Query.GetValueOrDefault(&quot;backendId&quot;, string.Empty))" />
+        <set-variable name="selected-backend" value="@{
+            var requested = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;requested-backend&quot;);
+            if (!string.IsNullOrEmpty(requested)) { return requested; }
+            var configured = context.Variables.GetValueOrDefault&lt;string&gt;(&quot;configured-backend&quot;);
+            return string.IsNullOrEmpty(configured) ? &quot;doc-west&quot; : configured;
+        }" />
+
+        <set-backend-service backend-id="@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;doc-west&quot;))" />
+        <authentication-managed-identity resource="https://cognitiveservices.azure.com" output-token-variable-name="managed-id-access-token" ignore-error="false" />
+        <set-header name="Authorization" exists-action="override">
+            <value>@("Bearer " + context.Variables.GetValueOrDefault&lt;string&gt;(&quot;managed-id-access-token&quot;, string.Empty))</value>
+        </set-header>        
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+
+        <set-header name="X-Backend-Used" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;doc-west&quot;))</value>
+        </set-header>
+        <set-header name="X-Processing-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;selected-backend&quot;, &quot;doc-west&quot;))</value>
+        </set-header>
+        <set-header name="X-Configured-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;configured-backend&quot;, &quot;unset&quot;))</value>
+        </set-header>
+        <set-header name="X-Requested-Backend" exists-action="override">
+            <value>@(context.Variables.GetValueOrDefault&lt;string&gt;(&quot;requested-backend&quot;, string.Empty))</value>
+        </set-header>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

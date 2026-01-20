@@ -1,0 +1,38 @@
+<!-- Operation-level policy for POST analyze requests to capture backend metadata -->
+<policies>
+    <inbound>
+        <base />
+        <!-- Capture UTC start time for the POST request -->
+        <set-variable name="requestStartTime" value="@(DateTime.UtcNow.ToString(&quot;o&quot;))" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+        <!-- Rewrite Operation-Location so pollers include backendId and requestStartTime -->
+        <choose>
+            <when condition='@(context.Response.Headers.ContainsKey("Operation-Location") &amp;&amp; context.Response.Headers["Operation-Location"] != null &amp;&amp; context.Response.Headers["Operation-Location"].Length > 0)'>
+                <set-header name="Operation-Location" exists-action="override">
+                    <value>@{
+                        var op = context.Response.Headers["Operation-Location"][0];
+                        var original = new System.Uri(op);
+                        var scheme = context.Request.OriginalUrl.Scheme;
+                        var host = context.Request.OriginalUrl.Host;
+                        var activeBackend = context.Variables.GetValueOrDefault&lt;string&gt;("selected-backend", "doc-west");
+                        if (string.IsNullOrEmpty(activeBackend)) { activeBackend = context.Variables.GetValueOrDefault&lt;string&gt;("configured-backend", "doc-west"); }
+                        var requestTime = context.Variables.GetValueOrDefault&lt;string&gt;("requestStartTime") ?? DateTime.UtcNow.ToString("o");
+                        var query = original.Query;
+                        var separator = string.IsNullOrEmpty(query) ? "?" : "&amp;";
+                        var newQuery = query + separator + "backendId=" + activeBackend + "&amp;requestTime=" + Uri.EscapeDataString(requestTime);
+                        var newUrl = scheme + "://" + host + original.AbsolutePath + newQuery;
+                        return newUrl;
+                    }</value>
+                </set-header>
+            </when>
+        </choose>
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
